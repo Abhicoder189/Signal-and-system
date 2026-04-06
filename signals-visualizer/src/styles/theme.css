@@ -1,0 +1,10 @@
+:root {
+  --bg: #f4efe6;
+  --bg-elevated: #fffaf2;
+  --ink: #122027;
+  --ink-soft: #405664;
+  --accent: #ce5a2f;
+  --accent-2: #2f7f8f;
+  --line: #d8c8b0;
+  --shadow: 0 14px 35px rgba(18, 32, 39, 0.12);
+}
