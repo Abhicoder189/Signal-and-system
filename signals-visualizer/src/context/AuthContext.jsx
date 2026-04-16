@@ -3,6 +3,7 @@ import { isAuthConfigured, supabase } from "../lib/supabaseClient";
 
 const BILLING_STATUS_FUNCTION = import.meta.env.VITE_BILLING_STATUS_FUNCTION || "billing-status";
 const SIGN_OUT_TIMEOUT_MS = 1500;
+const DEMO_PRO_EMAIL = String(import.meta.env.VITE_DEMO_PRO_EMAIL || "").trim().toLowerCase();
 
 const AuthContext = createContext(null);
 
@@ -45,6 +46,11 @@ function isEmailConfirmed(user) {
   );
 }
 
+function isDemoProUser(user) {
+  if (!user || !DEMO_PRO_EMAIL) return false;
+  return String(user.email || "").trim().toLowerCase() === DEMO_PRO_EMAIL;
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -75,6 +81,14 @@ export function AuthProvider({ children }) {
       if (!isAuthConfigured || !supabase || !effectiveUser) {
         setPlanTier("free");
         setSubscriptionStatus("inactive");
+        setEntitlementsLoading(false);
+        return;
+      }
+
+      if (isDemoProUser(effectiveUser)) {
+        // Allow a dedicated demo user to bypass billing checks for presentations.
+        setPlanTier("pro");
+        setSubscriptionStatus("active");
         setEntitlementsLoading(false);
         return;
       }

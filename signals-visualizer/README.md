@@ -49,6 +49,16 @@ Optional temporary links before Edge Functions are deployed:
 - `VITE_RAZORPAY_CHECKOUT_LINK`
 - `VITE_RAZORPAY_MANAGE_LINK`
 
+Optional demo Pro login for classroom/sales demos:
+
+- `VITE_DEMO_PRO_EMAIL`
+- `VITE_DEMO_PRO_PASSWORD`
+
+When configured:
+
+- Auth page shows a `Demo Pro Login` button
+- The configured demo email is treated as `pro` tier in-app for gated modules
+
 ### Run Development Server
 
 ```bash
@@ -103,6 +113,11 @@ Implemented in the app:
 - Premium route guards for `/convolution`, `/fourier`, `/laplace`
 - Pricing gate at `/pricing`
 - Billing page at `/billing` with checkout + subscription management actions
+
+Demo account behavior:
+
+- Sign in with the configured demo credentials to access premium modules for demonstrations
+- Demo Pro access is determined client-side by matching `VITE_DEMO_PRO_EMAIL`
 
 Expected backend behavior (Supabase + Razorpay):
 

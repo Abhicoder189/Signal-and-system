@@ -2,6 +2,15 @@ import { useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+const DEMO_PRO_EMAIL = String(import.meta.env.VITE_DEMO_PRO_EMAIL || "").trim();
+const DEMO_PRO_PASSWORD = String(import.meta.env.VITE_DEMO_PRO_PASSWORD || "").trim();
+const HAS_DEMO_PRO_CREDENTIALS = Boolean(DEMO_PRO_EMAIL && DEMO_PRO_PASSWORD);
+
+function isLikelyMissingDemoUser(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("invalid login credentials") || message.includes("user not found");
+}
+
 function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -110,6 +119,35 @@ function AuthPage() {
     setSubmitting(false);
   }
 
+  async function handleDemoSignIn() {
+    if (!HAS_DEMO_PRO_CREDENTIALS) {
+      setError("Demo account credentials are not configured in environment variables.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+
+    let { error: signInError } = await signIn(DEMO_PRO_EMAIL, DEMO_PRO_PASSWORD);
+
+    if (signInError && isLikelyMissingDemoUser(signInError)) {
+      const { error: signUpError } = await signUp(DEMO_PRO_EMAIL, DEMO_PRO_PASSWORD);
+      if (!signUpError) {
+        const retry = await signIn(DEMO_PRO_EMAIL, DEMO_PRO_PASSWORD);
+        signInError = retry.error;
+      }
+    }
+
+    if (signInError) {
+      setError(signInError.message || "Unable to sign in to demo account.");
+      setSubmitting(false);
+      return;
+    }
+
+    navigate(from, { replace: true });
+  }
+
   return (
     <section className="page-card auth-card">
       <h1>{mode === "signin" ? "Sign in" : "Create account"}</h1>
@@ -175,6 +213,21 @@ function AuthPage() {
             >
               {mode === "signin" ? "Need an account?" : "Have an account?"}
             </button>
+            {mode === "signin" && (
+              <button
+                type="button"
+                className="button button-subtle"
+                onClick={handleDemoSignIn}
+                disabled={!authEnabled || submitting || !HAS_DEMO_PRO_CREDENTIALS}
+                title={
+                  HAS_DEMO_PRO_CREDENTIALS
+                    ? "Sign in with the configured demo pro account"
+                    : "Set VITE_DEMO_PRO_EMAIL and VITE_DEMO_PRO_PASSWORD to enable demo login"
+                }
+              >
+                Demo Pro Login
+              </button>
+            )}
           </div>
         </form>
       )}
