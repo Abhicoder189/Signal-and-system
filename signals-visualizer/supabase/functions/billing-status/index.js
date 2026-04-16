@@ -33,6 +33,8 @@ Deno.serve(async (req) => {
       providerSubscriptionId: data?.provider_subscription_id || null
     });
   } catch (error) {
-    return jsonResponse({ error: error.message || "Unable to read billing status." }, 400);
+    const message = error.message || "Unable to read billing status.";
+    const status = message.toLowerCase().includes("unauthorized") ? 401 : 400;
+    return jsonResponse({ error: message }, status);
   }
 });

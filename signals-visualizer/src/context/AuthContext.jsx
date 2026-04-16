@@ -5,6 +5,18 @@ const BILLING_STATUS_FUNCTION = import.meta.env.VITE_BILLING_STATUS_FUNCTION || 
 
 const AuthContext = createContext(null);
 
+function isUnauthorizedInvokeError(error) {
+  if (!error) return false;
+
+  const message = String(error.message || "").toLowerCase();
+  if (message.includes("401") || message.includes("unauthorized")) {
+    return true;
+  }
+
+  const status = error?.context?.status;
+  return status === 401;
+}
+
 function parseBillingStatus(data, user) {
   const metadataPlan =
     user?.user_metadata?.plan || user?.app_metadata?.plan || user?.user_metadata?.tier;
@@ -56,6 +68,16 @@ export function AuthProvider({ children }) {
       const { data, error } = await supabase.functions.invoke(BILLING_STATUS_FUNCTION);
 
       if (error) {
+        if (isUnauthorizedInvokeError(error)) {
+          await supabase.auth.signOut({ scope: "local" });
+          setUser(null);
+          setEmailConfirmed(false);
+          setPlanTier("free");
+          setSubscriptionStatus("inactive");
+          setEntitlementsLoading(false);
+          return;
+        }
+
         const parsed = parseBillingStatus(null, effectiveUser);
         setPlanTier(parsed.tier);
         setSubscriptionStatus(parsed.status);
@@ -89,6 +111,7 @@ export function AuthProvider({ children }) {
 
       const sessionUser = data.session?.user ?? null;
       setUser(sessionUser);
+      setEmailConfirmed(isEmailConfirmed(sessionUser));
       setLoading(false);
       await refreshEntitlements(sessionUser);
     }
