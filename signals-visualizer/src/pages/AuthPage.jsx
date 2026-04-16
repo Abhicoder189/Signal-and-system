@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { authEnabled, user, signIn, signUp } = useAuth();
+  const { authEnabled, user, signIn, signUp, emailConfirmed, resendConfirmationEmail } = useAuth();
 
   const [mode, setMode] = useState("signin");
   const [email, setEmail] = useState("");
@@ -13,8 +13,62 @@ function AuthPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showConfirmationPending, setShowConfirmationPending] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
 
   const from = location.state?.from?.pathname || "/";
+
+  // User is logged in but email not confirmed yet
+  if (user && !emailConfirmed) {
+    return (
+      <section className="page-card auth-card">
+        <h1>Confirm your email</h1>
+        <p className="module-caption">
+          We sent a confirmation link to <strong>{user.email}</strong>. Click the link in your email to confirm your account.
+        </p>
+        
+        <p className="status-message status-success">
+          Awaiting email confirmation. You can browse the app while waiting.
+        </p>
+
+        <div className="control-row">
+          <button
+            type="button"
+            className="button button-subtle"
+            onClick={async () => {
+              setResendingEmail(true);
+              const { error } = await resendConfirmationEmail(user.email);
+              setResendingEmail(false);
+              if (error) {
+                setError(error.message || "Failed to resend confirmation email.");
+              } else {
+                setMessage("Confirmation email sent! Check your inbox.");
+              }
+            }}
+            disabled={resendingEmail}
+          >
+            {resendingEmail ? "Sending..." : "Resend confirmation email"}
+          </button>
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={async () => {
+              // Refresh session to check if email was confirmed
+              const { data } = await signIn(user.email, "");
+              if (data?.user?.email_confirmed_at) {
+                navigate(from, { replace: true });
+              }
+            }}
+          >
+            Already confirmed? Refresh
+          </button>
+        </div>
+
+        {error && <p className="status-message status-error" style={{ marginTop: "1rem" }}>{error}</p>}
+        {message && <p className="status-message status-success" style={{ marginTop: "1rem" }}>{message}</p>}
+      </section>
+    );
+  }
 
   if (user) {
     return <Navigate to={from} replace />;
@@ -38,7 +92,7 @@ function AuthPage() {
       return;
     }
 
-    const { error: signUpError } = await signUp(email, password);
+    const { error: signUpError, data } = await signUp(email, password);
 
     if (signUpError) {
       setError(signUpError.message || "Unable to create account.");
@@ -46,7 +100,13 @@ function AuthPage() {
       return;
     }
 
-    setMessage("Account created. Check your email if confirmation is enabled.");
+    // After successful signup, show confirmation pending message
+    if (data?.user) {
+      setShowConfirmationPending(true);
+      setMessage("Account created! Check your email for a confirmation link.");
+      setEmail("");
+      setPassword("");
+    }
     setSubmitting(false);
   }
 
@@ -60,49 +120,76 @@ function AuthPage() {
         </p>
       )}
 
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-            autoComplete="email"
-            disabled={!authEnabled || submitting}
-          />
-        </label>
+      {showConfirmationPending && (
+        <div className="status-message status-success">
+          <p>✓ Account created! A confirmation link has been sent to <strong>{email || "your email"}</strong>.</p>
+          <p style={{ marginTop: "0.5rem", fontSize: "0.9rem" }}>
+            Click the link in your email to confirm your account and start using the app.
+          </p>
+        </div>
+      )}
 
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            minLength={8}
-            autoComplete={mode === "signin" ? "current-password" : "new-password"}
-            disabled={!authEnabled || submitting}
-          />
-        </label>
+      {!showConfirmationPending && (
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <label>
+            Email
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              autoComplete="email"
+              disabled={!authEnabled || submitting}
+            />
+          </label>
 
-        {error && <p className="status-message status-error">{error}</p>}
-        {message && <p className="status-message status-success">{message}</p>}
+          <label>
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              minLength={8}
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              disabled={!authEnabled || submitting}
+            />
+          </label>
 
-        <div className="control-row">
-          <button type="submit" className="button button-primary" disabled={!authEnabled || submitting}>
-            {submitting ? "Please wait..." : mode === "signin" ? "Sign in" : "Create account"}
-          </button>
+          {error && <p className="status-message status-error">{error}</p>}
+          {message && <p className="status-message status-success">{message}</p>}
+
+          <div className="control-row">
+            <button type="submit" className="button button-primary" disabled={!authEnabled || submitting}>
+              {submitting ? "Please wait..." : mode === "signin" ? "Sign in" : "Create account"}
+            </button>
+            <button
+              type="button"
+              className="button button-subtle"
+              onClick={() => {
+                setMode(mode === "signin" ? "signup" : "signin");
+                setError("");
+                setMessage("");
+              }}
+              disabled={submitting}
+            >
+              {mode === "signin" ? "Need an account?" : "Have an account?"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {showConfirmationPending && (
+        <div className="control-row" style={{ marginTop: "1rem", flexDirection: "column", alignItems: "stretch" }}>
           <button
             type="button"
             className="button button-subtle"
-            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            disabled={submitting}
+            onClick={() => setShowConfirmationPending(false)}
           >
-            {mode === "signin" ? "Need an account?" : "Have an account?"}
+            Back to sign in
           </button>
         </div>
-      </form>
+      )}
 
       <p className="module-caption">
         Pro access unlocks Convolution, Fourier, and Laplace premium labs. <Link className="text-link" to="/pricing">View plan details</Link>.

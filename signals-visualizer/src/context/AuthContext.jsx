@@ -22,12 +22,23 @@ function parseBillingStatus(data, user) {
   };
 }
 
+function isEmailConfirmed(user) {
+  if (!user) return false;
+  // Check if email is confirmed (user_metadata.email_verified or confirmed_at timestamp)
+  return (
+    user.email_confirmed_at !== null ||
+    user.user_metadata?.email_verified === true ||
+    user.confirmed_at !== null
+  );
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [entitlementsLoading, setEntitlementsLoading] = useState(true);
   const [planTier, setPlanTier] = useState("free");
   const [subscriptionStatus, setSubscriptionStatus] = useState("inactive");
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
 
   const refreshEntitlements = useCallback(
     async (targetUser) => {
@@ -89,6 +100,7 @@ export function AuthProvider({ children }) {
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const nextUser = session?.user ?? null;
       setUser(nextUser);
+      setEmailConfirmed(isEmailConfirmed(nextUser));
       setLoading(false);
       await refreshEntitlements(nextUser);
     });
@@ -125,6 +137,19 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut();
   }
 
+  async function resendConfirmationEmail(email) {
+    if (!isAuthConfigured || !supabase) {
+      return { error: { message: "Supabase auth is not configured." } };
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email
+    });
+
+    return { error };
+  }
+
   const value = useMemo(
     () => ({
       authEnabled: isAuthConfigured,
@@ -133,13 +158,15 @@ export function AuthProvider({ children }) {
       planTier,
       subscriptionStatus,
       entitlementsLoading,
+      emailConfirmed,
       isPro: planTier === "pro",
       refreshEntitlements,
       signIn,
       signUp,
-      signOut
+      signOut,
+      resendConfirmationEmail
     }),
-    [user, loading, planTier, subscriptionStatus, entitlementsLoading, refreshEntitlements]
+    [user, loading, planTier, subscriptionStatus, entitlementsLoading, emailConfirmed, refreshEntitlements]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
