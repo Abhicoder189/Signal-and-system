@@ -7,6 +7,8 @@ create table if not exists public.user_subscriptions (
   provider_customer_id text,
   checkout_link_id text,
   last_manage_url text,
+  last_webhook_event text,
+  last_webhook_at timestamptz,
   current_period_end timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

@@ -31,6 +31,10 @@ function getUserIdFromPayload(payload) {
   );
 }
 
+function getPaymentLinkId(payload) {
+  return payload?.payload?.payment_link?.entity?.id || null;
+}
+
 function deriveBillingUpdate(payload) {
   const event = String(payload?.event || "");
   const subscription = payload?.payload?.subscription?.entity;
@@ -97,15 +101,30 @@ Deno.serve(async (req) => {
       throw new Error("Invalid Razorpay webhook signature.");
     }
 
-    const userId = getUserIdFromPayload(payload);
-    if (!userId) {
-      return jsonResponse({ ok: true, skipped: true, reason: "No user_id in Razorpay notes." });
-    }
-
     const billing = deriveBillingUpdate(payload);
     const supabase = createServiceClient();
     const table = getSubscriptionTableName();
     const manageUrl = getEnv("RAZORPAY_MANAGE_URL", null);
+    const paymentLinkId = getPaymentLinkId(payload);
+
+    let userId = getUserIdFromPayload(payload);
+    if (!userId && paymentLinkId) {
+      const { data: matchedRow, error: lookupError } = await supabase
+        .from(table)
+        .select("user_id")
+        .eq("checkout_link_id", paymentLinkId)
+        .maybeSingle();
+
+      if (lookupError) {
+        throw lookupError;
+      }
+
+      userId = matchedRow?.user_id || null;
+    }
+
+    if (!userId) {
+      return jsonResponse({ ok: true, skipped: true, reason: "No user mapping found for Razorpay webhook." });
+    }
 
     const { error } = await supabase.from(table).upsert(
       {
@@ -117,6 +136,9 @@ Deno.serve(async (req) => {
         provider_customer_id: billing.providerCustomerId,
         current_period_end: billing.currentPeriodEnd,
         last_manage_url: manageUrl,
+        checkout_link_id: paymentLinkId,
+        last_webhook_event: billing.event,
+        last_webhook_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       },
       { onConflict: "user_id" }
@@ -126,7 +148,7 @@ Deno.serve(async (req) => {
       throw error;
     }
 
-    return jsonResponse({ ok: true, event: billing.event, userId });
+    return jsonResponse({ ok: true, event: billing.event, userId, paymentLinkId });
   } catch (error) {
     return jsonResponse({ error: error.message || "Webhook handling failed." }, 400);
   }
