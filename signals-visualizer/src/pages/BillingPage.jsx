@@ -10,6 +10,20 @@ const MANAGE_FUNCTION =
 const PAYMENT_LINK = import.meta.env.VITE_RAZORPAY_CHECKOUT_LINK;
 const MANAGE_LINK = import.meta.env.VITE_RAZORPAY_MANAGE_LINK;
 
+function formatFunctionInvokeError(error, functionName, fallbackMessage) {
+  const message = String(error?.message || "");
+
+  if (message.includes("Failed to send a request to the Edge Function")) {
+    return `Unable to reach Supabase function \"${functionName}\". Deploy the function and verify VITE_SUPABASE_URL is correct.`;
+  }
+
+  if (message.includes("non-2xx status code")) {
+    return `Supabase function \"${functionName}\" returned an error. Check function logs and secrets in Supabase.`;
+  }
+
+  return message || fallbackMessage;
+}
+
 function BillingPage() {
   const { authEnabled, user, isPro, planTier, subscriptionStatus, refreshEntitlements } = useAuth();
   const [busyAction, setBusyAction] = useState("");
@@ -34,7 +48,13 @@ function BillingPage() {
 
     if (checkoutError || !data?.url) {
       setBusyAction("");
-      setError(checkoutError?.message || "Unable to start checkout.");
+      setError(
+        formatFunctionInvokeError(
+          checkoutError,
+          CHECKOUT_FUNCTION,
+          "Unable to start checkout."
+        )
+      );
       return;
     }
 
@@ -60,7 +80,13 @@ function BillingPage() {
 
     if (manageError || !data?.url) {
       setBusyAction("");
-      setError(manageError?.message || "Unable to open subscription management.");
+      setError(
+        formatFunctionInvokeError(
+          manageError,
+          MANAGE_FUNCTION,
+          "Unable to open subscription management."
+        )
+      );
       return;
     }
 
