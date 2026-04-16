@@ -4,6 +4,45 @@ import { handleOptions, jsonResponse } from "../_shared/http.js";
 import { razorpayRequest } from "../_shared/razorpay.js";
 import { getSubscriptionTableName } from "../_shared/subscription.js";
 
+function toPositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? fallback), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return Number.parseInt(String(fallback), 10);
+  }
+  return parsed;
+}
+
+function isHttpUrl(value) {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function resolveCallbackUrl(req) {
+  const configuredRedirect = getEnv("RAZORPAY_SUCCESS_REDIRECT", "");
+  if (isHttpUrl(configuredRedirect)) {
+    return configuredRedirect;
+  }
+
+  const appBaseUrl = getEnv("APP_BASE_URL", "");
+  if (isHttpUrl(appBaseUrl)) {
+    const base = appBaseUrl.replace(/\/$/, "");
+    return `${base}/billing`;
+  }
+
+  const originHeader = req.headers.get("origin") || "";
+  if (isHttpUrl(originHeader)) {
+    const base = originHeader.replace(/\/$/, "");
+    return `${base}/billing`;
+  }
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   const preflight = handleOptions(req);
   if (preflight) {
@@ -19,10 +58,9 @@ Deno.serve(async (req) => {
     const supabase = createServiceClient();
     const table = getSubscriptionTableName();
 
-    const amount = Number(getEnv("RAZORPAY_PRO_PRICE_PAISE", "19900"));
-    const currency = getEnv("RAZORPAY_CURRENCY", "INR");
-    const appBaseUrl = getEnv("APP_BASE_URL", "http://localhost:5173");
-    const callbackUrl = getEnv("RAZORPAY_SUCCESS_REDIRECT", `${appBaseUrl}/billing`);
+    const amount = toPositiveInteger(getEnv("RAZORPAY_PRO_PRICE_PAISE", "19900"), 19900);
+    const currency = String(getEnv("RAZORPAY_CURRENCY", "INR")).toUpperCase();
+    const callbackUrl = resolveCallbackUrl(req);
 
     const description = getEnv("RAZORPAY_PRODUCT_DESCRIPTION", "Signals Visualizer Pro");
 
@@ -38,13 +76,16 @@ Deno.serve(async (req) => {
         email: true,
         sms: false
       },
-      callback_url: callbackUrl,
-      callback_method: "get",
       notes: {
         user_id: user.id,
         plan_tier: "pro"
       }
     };
+
+    if (callbackUrl) {
+      payload.callback_url = callbackUrl;
+      payload.callback_method = "get";
+    }
 
     const link = await razorpayRequest("/v1/payment_links", payload);
     const paymentUrl = link.short_url || link.payment_url || link.url;
