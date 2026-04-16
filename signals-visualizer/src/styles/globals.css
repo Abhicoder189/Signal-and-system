@@ -50,6 +50,29 @@ a {
   font-size: 0.95rem;
 }
 
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.navbar-auth {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.25rem;
+}
+
+.account-email {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
 .navbar-link {
   padding: 0.35rem 0.6rem;
   border-radius: 10px;
@@ -184,8 +207,123 @@ a {
 
 .control-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   align-items: center;
+}
+
+.button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.2s ease;
+}
+
+.button:hover {
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+}
+
+.button-primary {
+  background: linear-gradient(120deg, var(--accent), #dc7744);
+  border-color: rgba(206, 90, 47, 0.45);
+  color: #fff;
+  font-weight: 600;
+}
+
+.button-subtle {
+  background: #fff;
+  color: var(--ink);
+}
+
+.plan-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(47, 127, 143, 0.1);
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.sidebar-plan {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--line);
+}
+
+.sidebar-plan h4 {
+  margin: 0 0 0.4rem;
+}
+
+.module-card-highlight {
+  border-color: rgba(206, 90, 47, 0.45);
+  box-shadow: 0 10px 24px rgba(206, 90, 47, 0.13);
+}
+
+.auth-card {
+  max-width: 540px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.auth-form input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.6rem;
+  font: inherit;
+  background: #fff;
+}
+
+.status-message {
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.status-error {
+  background: rgba(206, 90, 47, 0.12);
+  border-color: rgba(206, 90, 47, 0.4);
+}
+
+.status-success {
+  background: rgba(47, 127, 143, 0.12);
+  border-color: rgba(47, 127, 143, 0.35);
+}
+
+.pricing-card {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.pricing-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.45rem;
+  color: var(--ink-soft);
 }
 
 .mono {
@@ -201,6 +339,27 @@ a {
 @media (max-width: 900px) {
   .main-shell {
     grid-template-columns: 1fr;
+  }
+
+  .navbar {
+    align-items: flex-start;
+    gap: 0.8rem;
+    flex-direction: column;
+  }
+
+  .navbar-right {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .navbar-auth {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .account-email {
+    max-width: 100%;
   }
 
   .sidebar {

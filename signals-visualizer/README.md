@@ -14,6 +14,8 @@ Interactive web application for learning core Signals and Systems concepts with 
 - React 18
 - React Router 6
 - Vite 5
+- Supabase Auth + Edge Functions
+- Stripe subscriptions
 - Plotly.js via react-plotly.js
 - ESLint + Prettier
 - Vitest for unit tests
@@ -31,6 +33,21 @@ Interactive web application for learning core Signals and Systems concepts with 
 ```bash
 npm install
 ```
+
+### Configure Environment
+
+Copy `.env.example` to `.env` and set:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_BILLING_STATUS_FUNCTION` (default: `billing-status`)
+- `VITE_CHECKOUT_FUNCTION` (default: `create-checkout-session`)
+- `VITE_CUSTOMER_PORTAL_FUNCTION` (default: `create-portal-session`)
+
+Optional temporary links before Edge Functions are deployed:
+
+- `VITE_STRIPE_PAYMENT_LINK`
+- `VITE_CUSTOMER_PORTAL_LINK`
 
 ### Run Development Server
 
@@ -75,6 +92,39 @@ npm run coverage
 
 ```bash
 npm run check
+```
+
+## Authentication and Monetization
+
+Implemented in the app:
+
+- Email/password sign in and sign up via Supabase
+- Auth-aware navigation and account actions
+- Premium route guards for `/convolution`, `/fourier`, `/laplace`
+- Pricing gate at `/pricing`
+- Billing page at `/billing` with checkout + customer portal actions
+
+Expected backend behavior (Supabase + Stripe):
+
+- `billing-status` should return JSON with `tier` and `status`
+- `create-checkout-session` should return JSON with `url`
+- `create-portal-session` should return JSON with `url`
+
+Example `billing-status` response:
+
+```json
+{
+  "tier": "pro",
+  "status": "active"
+}
+```
+
+Example checkout/portal response:
+
+```json
+{
+  "url": "https://checkout.stripe.com/c/pay/cs_test_..."
+}
 ```
 
 ## Project Structure
