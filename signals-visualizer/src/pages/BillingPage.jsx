@@ -7,6 +7,8 @@ const CHECKOUT_FUNCTION =
   import.meta.env.VITE_RAZORPAY_CHECKOUT_FUNCTION || "create-razorpay-checkout";
 const MANAGE_FUNCTION =
   import.meta.env.VITE_RAZORPAY_MANAGE_FUNCTION || "get-razorpay-manage-link";
+const DEFAULT_CHECKOUT_FUNCTION = "create-razorpay-checkout";
+const DEFAULT_MANAGE_FUNCTION = "get-razorpay-manage-link";
 const PAYMENT_LINK = import.meta.env.VITE_RAZORPAY_CHECKOUT_LINK;
 const MANAGE_LINK = import.meta.env.VITE_RAZORPAY_MANAGE_LINK;
 
@@ -22,6 +24,22 @@ function formatFunctionInvokeError(error, functionName, fallbackMessage) {
   }
 
   return message || fallbackMessage;
+}
+
+function isNotFoundInvokeError(error) {
+  if (!error) return false;
+  if (error?.context?.status === 404) return true;
+  const message = String(error.message || "").toLowerCase();
+  return message.includes("404") || message.includes("not found");
+}
+
+async function invokeWithNameFallback(functionName, fallbackFunctionName) {
+  const firstAttempt = await supabase.functions.invoke(functionName);
+  if (!isNotFoundInvokeError(firstAttempt.error) || functionName === fallbackFunctionName) {
+    return firstAttempt;
+  }
+
+  return supabase.functions.invoke(fallbackFunctionName);
 }
 
 async function resolveInvokeErrorMessage(error, functionName, fallbackMessage, responseData) {
@@ -64,7 +82,10 @@ function BillingPage() {
       return;
     }
 
-    const { data, error: checkoutError } = await supabase.functions.invoke(CHECKOUT_FUNCTION);
+    const { data, error: checkoutError } = await invokeWithNameFallback(
+      CHECKOUT_FUNCTION,
+      DEFAULT_CHECKOUT_FUNCTION
+    );
 
     if (checkoutError || !data?.url) {
       setBusyAction("");
@@ -96,7 +117,10 @@ function BillingPage() {
       return;
     }
 
-    const { data, error: manageError } = await supabase.functions.invoke(MANAGE_FUNCTION);
+    const { data, error: manageError } = await invokeWithNameFallback(
+      MANAGE_FUNCTION,
+      DEFAULT_MANAGE_FUNCTION
+    );
 
     if (manageError || !data?.url) {
       setBusyAction("");
