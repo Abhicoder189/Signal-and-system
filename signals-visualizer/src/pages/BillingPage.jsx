@@ -14,6 +14,14 @@ const MANAGE_LINK = import.meta.env.VITE_RAZORPAY_MANAGE_LINK;
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+function getRuntimeAnonKey() {
+  return (
+    SUPABASE_ANON_KEY ||
+    supabase?.supabaseKey ||
+    ""
+  );
+}
+
 function getProjectRefFromUrl(url) {
   if (!url) return null;
   try {
@@ -27,13 +35,16 @@ function getProjectRefFromUrl(url) {
 
 function getFunctionCandidateUrls(functionName) {
   const urls = [];
+  const anonKey = getRuntimeAnonKey();
+  const keyQuery = anonKey ? `?apikey=${encodeURIComponent(anonKey)}` : "";
+
   if (SUPABASE_URL) {
-    urls.push(`${SUPABASE_URL}/functions/v1/${functionName}`);
+    urls.push(`${SUPABASE_URL}/functions/v1/${functionName}${keyQuery}`);
   }
 
   const projectRef = getProjectRefFromUrl(SUPABASE_URL);
   if (projectRef) {
-    urls.push(`https://${projectRef}.functions.supabase.co/${functionName}`);
+    urls.push(`https://${projectRef}.functions.supabase.co/${functionName}${keyQuery}`);
   }
 
   return Array.from(new Set(urls));
@@ -45,10 +56,12 @@ async function directInvoke(functionName) {
   } = await supabase.auth.getSession();
 
   const accessToken = session?.access_token;
-  if (!accessToken || !SUPABASE_ANON_KEY) {
+  const anonKey = getRuntimeAnonKey();
+
+  if (!accessToken || !anonKey) {
     return {
       data: null,
-      error: { message: "Missing auth session for direct function call." }
+      error: { message: "Missing auth session or Supabase anon key for direct function call." }
     };
   }
 
@@ -61,7 +74,7 @@ async function directInvoke(functionName) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: SUPABASE_ANON_KEY,
+          apikey: anonKey,
           Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({})
