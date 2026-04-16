@@ -218,11 +218,11 @@ function AuthPage() {
                 type="button"
                 className="button button-subtle"
                 onClick={handleDemoSignIn}
-                disabled={!authEnabled || submitting || !HAS_DEMO_PRO_CREDENTIALS}
+                disabled={submitting}
                 title={
                   HAS_DEMO_PRO_CREDENTIALS
                     ? "Sign in with the configured demo pro account"
-                    : "Set VITE_DEMO_PRO_EMAIL and VITE_DEMO_PRO_PASSWORD to enable demo login"
+                    : "Set VITE_DEMO_PRO_EMAIL and VITE_DEMO_PRO_PASSWORD, then restart the dev server"
                 }
               >
                 Demo Pro Login
