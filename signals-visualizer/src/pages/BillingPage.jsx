@@ -11,6 +11,79 @@ const DEFAULT_CHECKOUT_FUNCTION = "create-razorpay-checkout";
 const DEFAULT_MANAGE_FUNCTION = "get-razorpay-manage-link";
 const PAYMENT_LINK = import.meta.env.VITE_RAZORPAY_CHECKOUT_LINK;
 const MANAGE_LINK = import.meta.env.VITE_RAZORPAY_MANAGE_LINK;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+function getProjectRefFromUrl(url) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const hostParts = parsed.hostname.split(".");
+    return hostParts[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+function getFunctionCandidateUrls(functionName) {
+  const urls = [];
+  if (SUPABASE_URL) {
+    urls.push(`${SUPABASE_URL}/functions/v1/${functionName}`);
+  }
+
+  const projectRef = getProjectRefFromUrl(SUPABASE_URL);
+  if (projectRef) {
+    urls.push(`https://${projectRef}.functions.supabase.co/${functionName}`);
+  }
+
+  return Array.from(new Set(urls));
+}
+
+async function directInvoke(functionName) {
+  const {
+    data: { session }
+  } = await supabase.auth.getSession();
+
+  const accessToken = session?.access_token;
+  if (!accessToken || !SUPABASE_ANON_KEY) {
+    return {
+      data: null,
+      error: { message: "Missing auth session for direct function call." }
+    };
+  }
+
+  const candidateUrls = getFunctionCandidateUrls(functionName);
+  let lastError = null;
+
+  for (const url of candidateUrls) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({})
+      });
+
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        lastError = {
+          message: body?.error || `Function request failed with ${response.status}`,
+          context: { status: response.status }
+        };
+        continue;
+      }
+
+      return { data: body, error: null };
+    } catch (error) {
+      lastError = { message: error?.message || "Direct function call failed." };
+    }
+  }
+
+  return { data: null, error: lastError || { message: "Unable to reach edge function." } };
+}
 
 function formatFunctionInvokeError(error, functionName, fallbackMessage) {
   const message = String(error?.message || "");
@@ -35,11 +108,27 @@ function isNotFoundInvokeError(error) {
 
 async function invokeWithNameFallback(functionName, fallbackFunctionName) {
   const firstAttempt = await supabase.functions.invoke(functionName);
+
+  const firstMessage = String(firstAttempt.error?.message || "");
+  if (firstMessage.includes("Failed to send a request to the Edge Function")) {
+    const directResult = await directInvoke(functionName);
+    if (!directResult.error) {
+      return directResult;
+    }
+  }
+
   if (!isNotFoundInvokeError(firstAttempt.error) || functionName === fallbackFunctionName) {
     return firstAttempt;
   }
 
-  return supabase.functions.invoke(fallbackFunctionName);
+  const secondAttempt = await supabase.functions.invoke(fallbackFunctionName);
+  const secondMessage = String(secondAttempt.error?.message || "");
+
+  if (secondMessage.includes("Failed to send a request to the Edge Function")) {
+    return directInvoke(fallbackFunctionName);
+  }
+
+  return secondAttempt;
 }
 
 async function resolveInvokeErrorMessage(error, functionName, fallbackMessage, responseData) {
