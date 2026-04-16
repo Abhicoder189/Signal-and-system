@@ -85,8 +85,11 @@ export function AuthProvider({ children }) {
 
       if (error) {
         if (isUnauthorizedInvokeError(error)) {
-          void supabase.auth.signOut({ scope: "local" });
-          resetLocalAuthState();
+          // Do not force sign-out on billing status auth glitches.
+          // Keep user signed in and fall back to free access state.
+          setPlanTier("free");
+          setSubscriptionStatus("inactive");
+          setEntitlementsLoading(false);
           return;
         }
 
