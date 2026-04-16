@@ -15,7 +15,7 @@ Interactive web application for learning core Signals and Systems concepts with 
 - React Router 6
 - Vite 5
 - Supabase Auth + Edge Functions
-- Stripe subscriptions
+- Razorpay subscriptions
 - Plotly.js via react-plotly.js
 - ESLint + Prettier
 - Vitest for unit tests
@@ -41,13 +41,13 @@ Copy `.env.example` to `.env` and set:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_BILLING_STATUS_FUNCTION` (default: `billing-status`)
-- `VITE_CHECKOUT_FUNCTION` (default: `create-checkout-session`)
-- `VITE_CUSTOMER_PORTAL_FUNCTION` (default: `create-portal-session`)
+- `VITE_RAZORPAY_CHECKOUT_FUNCTION` (default: `create-razorpay-checkout`)
+- `VITE_RAZORPAY_MANAGE_FUNCTION` (default: `get-razorpay-manage-link`)
 
 Optional temporary links before Edge Functions are deployed:
 
-- `VITE_STRIPE_PAYMENT_LINK`
-- `VITE_CUSTOMER_PORTAL_LINK`
+- `VITE_RAZORPAY_CHECKOUT_LINK`
+- `VITE_RAZORPAY_MANAGE_LINK`
 
 ### Run Development Server
 
@@ -102,13 +102,13 @@ Implemented in the app:
 - Auth-aware navigation and account actions
 - Premium route guards for `/convolution`, `/fourier`, `/laplace`
 - Pricing gate at `/pricing`
-- Billing page at `/billing` with checkout + customer portal actions
+- Billing page at `/billing` with checkout + subscription management actions
 
-Expected backend behavior (Supabase + Stripe):
+Expected backend behavior (Supabase + Razorpay):
 
 - `billing-status` should return JSON with `tier` and `status`
-- `create-checkout-session` should return JSON with `url`
-- `create-portal-session` should return JSON with `url`
+- `create-razorpay-checkout` should return JSON with `url`
+- `get-razorpay-manage-link` should return JSON with `url`
 
 Example `billing-status` response:
 
@@ -119,13 +119,77 @@ Example `billing-status` response:
 }
 ```
 
-Example checkout/portal response:
+Example checkout/management response:
 
 ```json
 {
-  "url": "https://checkout.stripe.com/c/pay/cs_test_..."
+  "url": "https://rzp.io/rzp/your-payment-link"
 }
 ```
+
+## Supabase Edge Functions (JavaScript)
+
+This repository includes JavaScript Edge Functions in `supabase/functions`:
+
+- `billing-status`
+- `create-razorpay-checkout`
+- `get-razorpay-manage-link`
+- `razorpay-webhook`
+
+### 1) Run the SQL migration
+
+Apply `supabase/migrations/20260416_create_user_subscriptions.sql` in your Supabase project.
+
+### 2) Set function secrets
+
+Use Supabase CLI to set secrets (do not store these in frontend `.env`):
+
+```bash
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+supabase secrets set RAZORPAY_KEY_ID=rzp_live_xxx
+supabase secrets set RAZORPAY_KEY_SECRET=your_razorpay_secret
+supabase secrets set RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+supabase secrets set APP_BASE_URL=https://your-domain.com
+supabase secrets set RAZORPAY_SUCCESS_REDIRECT=https://your-domain.com/billing
+supabase secrets set RAZORPAY_PRO_PRICE_PAISE=19900
+supabase secrets set RAZORPAY_CURRENCY=INR
+supabase secrets set RAZORPAY_MANAGE_URL=https://your-domain.com/account/billing
+```
+
+Optional:
+
+```bash
+supabase secrets set BILLING_SUBSCRIPTIONS_TABLE=user_subscriptions
+```
+
+### 3) Deploy functions
+
+```bash
+supabase functions deploy billing-status
+supabase functions deploy create-razorpay-checkout
+supabase functions deploy get-razorpay-manage-link
+supabase functions deploy razorpay-webhook --no-verify-jwt
+```
+
+### 4) Configure Razorpay webhook
+
+Create a webhook in Razorpay dashboard pointing to:
+
+`https://<PROJECT-REF>.functions.supabase.co/razorpay-webhook`
+
+Recommended events:
+
+- `payment_link.paid`
+- `payment.captured`
+- `subscription.authenticated`
+- `subscription.charged`
+- `subscription.activated`
+- `subscription.cancelled`
+
+Important:
+
+- Include `notes.user_id` in checkout payloads (already implemented in function) so webhook can map payments to users.
+- Keep JWT verification disabled only for the webhook function.
 
 ## Project Structure
 

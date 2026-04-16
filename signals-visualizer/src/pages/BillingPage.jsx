@@ -3,10 +3,12 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabaseClient";
 
-const CHECKOUT_FUNCTION = import.meta.env.VITE_CHECKOUT_FUNCTION || "create-checkout-session";
-const PORTAL_FUNCTION = import.meta.env.VITE_CUSTOMER_PORTAL_FUNCTION || "create-portal-session";
-const PAYMENT_LINK = import.meta.env.VITE_STRIPE_PAYMENT_LINK;
-const PORTAL_LINK = import.meta.env.VITE_CUSTOMER_PORTAL_LINK;
+const CHECKOUT_FUNCTION =
+  import.meta.env.VITE_RAZORPAY_CHECKOUT_FUNCTION || "create-razorpay-checkout";
+const MANAGE_FUNCTION =
+  import.meta.env.VITE_RAZORPAY_MANAGE_FUNCTION || "get-razorpay-manage-link";
+const PAYMENT_LINK = import.meta.env.VITE_RAZORPAY_CHECKOUT_LINK;
+const MANAGE_LINK = import.meta.env.VITE_RAZORPAY_MANAGE_LINK;
 
 function BillingPage() {
   const { authEnabled, user, isPro, planTier, subscriptionStatus, refreshEntitlements } = useAuth();
@@ -39,12 +41,12 @@ function BillingPage() {
     window.location.assign(data.url);
   }
 
-  async function openPortal() {
+  async function openManage() {
     setError("");
-    setBusyAction("portal");
+    setBusyAction("manage");
 
-    if (PORTAL_LINK) {
-      window.location.assign(PORTAL_LINK);
+    if (MANAGE_LINK) {
+      window.location.assign(MANAGE_LINK);
       return;
     }
 
@@ -54,11 +56,11 @@ function BillingPage() {
       return;
     }
 
-    const { data, error: portalError } = await supabase.functions.invoke(PORTAL_FUNCTION);
+    const { data, error: manageError } = await supabase.functions.invoke(MANAGE_FUNCTION);
 
-    if (portalError || !data?.url) {
+    if (manageError || !data?.url) {
       setBusyAction("");
-      setError(portalError?.message || "Unable to open billing portal.");
+      setError(manageError?.message || "Unable to open subscription management.");
       return;
     }
 
@@ -91,7 +93,7 @@ function BillingPage() {
           <h3>{isPro ? "Manage Pro" : "Upgrade to Pro"}</h3>
           <p>
             {isPro
-              ? "Use the customer portal to manage your subscription and payment method."
+              ? "Use Razorpay subscription management to update your plan and payment method."
               : "Unlock premium Convolution, Fourier, and Laplace labs with paid access."}
           </p>
           <div className="control-row">
@@ -108,10 +110,10 @@ function BillingPage() {
             <button
               type="button"
               className="button button-subtle"
-              onClick={openPortal}
+              onClick={openManage}
               disabled={busyAction.length > 0}
             >
-              {busyAction === "portal" ? "Opening..." : "Open billing portal"}
+              {busyAction === "manage" ? "Opening..." : "Manage subscription"}
             </button>
           </div>
         </article>
@@ -121,7 +123,7 @@ function BillingPage() {
 
       {!authEnabled && (
         <p className="module-caption">
-          Billing requires Supabase and Stripe environment configuration.
+          Billing requires Supabase and Razorpay environment configuration.
         </p>
       )}
 
