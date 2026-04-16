@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { isAuthConfigured, supabase } from "../lib/supabaseClient";
 
 const BILLING_STATUS_FUNCTION = import.meta.env.VITE_BILLING_STATUS_FUNCTION || "billing-status";
+const SIGN_OUT_TIMEOUT_MS = 1500;
 
 const AuthContext = createContext(null);
 
@@ -51,10 +52,25 @@ export function AuthProvider({ children }) {
   const [planTier, setPlanTier] = useState("free");
   const [subscriptionStatus, setSubscriptionStatus] = useState("inactive");
   const [emailConfirmed, setEmailConfirmed] = useState(false);
+  const signingOutRef = useRef(false);
+
+  const resetLocalAuthState = useCallback(() => {
+    setUser(null);
+    setEmailConfirmed(false);
+    setPlanTier("free");
+    setSubscriptionStatus("inactive");
+    setEntitlementsLoading(false);
+    setLoading(false);
+  }, []);
 
   const refreshEntitlements = useCallback(
     async (targetUser) => {
       const effectiveUser = targetUser ?? user;
+
+      if (signingOutRef.current) {
+        setEntitlementsLoading(false);
+        return;
+      }
 
       if (!isAuthConfigured || !supabase || !effectiveUser) {
         setPlanTier("free");
@@ -69,12 +85,8 @@ export function AuthProvider({ children }) {
 
       if (error) {
         if (isUnauthorizedInvokeError(error)) {
-          await supabase.auth.signOut({ scope: "local" });
-          setUser(null);
-          setEmailConfirmed(false);
-          setPlanTier("free");
-          setSubscriptionStatus("inactive");
-          setEntitlementsLoading(false);
+          void supabase.auth.signOut({ scope: "local" });
+          resetLocalAuthState();
           return;
         }
 
@@ -90,7 +102,7 @@ export function AuthProvider({ children }) {
       setSubscriptionStatus(parsed.status);
       setEntitlementsLoading(false);
     },
-    [user]
+    [user, resetLocalAuthState]
   );
 
   useEffect(() => {
@@ -157,16 +169,38 @@ export function AuthProvider({ children }) {
       return { error: { message: "Supabase auth is not configured." } };
     }
 
-    const { error } = await supabase.auth.signOut({ scope: "local" });
+    signingOutRef.current = true;
+    resetLocalAuthState();
 
-    if (!error) {
-      setUser(null);
-      setEmailConfirmed(false);
-      setPlanTier("free");
-      setSubscriptionStatus("inactive");
+    const signOutPromise = supabase.auth.signOut({ scope: "local" });
+    const timeoutPromise = new Promise((resolve) => {
+      setTimeout(() => resolve({ timedOut: true, error: null }), SIGN_OUT_TIMEOUT_MS);
+    });
+
+    let result;
+    try {
+      result = await Promise.race([
+        signOutPromise
+          .then(({ error }) => ({ timedOut: false, error }))
+          .catch((error) => ({ timedOut: false, error })),
+        timeoutPromise
+      ]);
+    } catch (error) {
+      signingOutRef.current = false;
+      return { error: { message: error?.message || "Unable to sign out." } };
     }
 
-    return { error };
+    if (result.timedOut) {
+      // Keep trying to invalidate local auth in the background, but don't block UI.
+      void signOutPromise.finally(() => {
+        signingOutRef.current = false;
+      });
+      return { error: null };
+    }
+
+    signingOutRef.current = false;
+
+    return { error: result.error };
   }
 
   async function resendConfirmationEmail(email) {
