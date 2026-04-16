@@ -50,6 +50,49 @@ function getFunctionCandidateUrls(functionName) {
   return Array.from(new Set(urls));
 }
 
+function extractRedirectUrl(payload) {
+  if (!payload || typeof payload !== "object") {
+    return "";
+  }
+
+  return (
+    payload.url ||
+    payload.short_url ||
+    payload.payment_url ||
+    payload.link?.url ||
+    ""
+  );
+}
+
+function normalizeExternalUrl(url) {
+  if (!url) return "";
+
+  const trimmed = String(url).trim();
+  if (!trimmed) return "";
+
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+function redirectToExternalUrl(rawUrl) {
+  const normalized = normalizeExternalUrl(rawUrl);
+  if (!normalized) {
+    return false;
+  }
+
+  window.location.assign(normalized);
+  return true;
+}
+
 async function directInvoke(functionName) {
   const {
     data: { session }
@@ -189,7 +232,9 @@ function BillingPage() {
       DEFAULT_CHECKOUT_FUNCTION
     );
 
-    if (checkoutError || !data?.url) {
+    const redirectUrl = extractRedirectUrl(data);
+
+    if (checkoutError || !redirectUrl) {
       setBusyAction("");
       const message = await resolveInvokeErrorMessage(
         checkoutError,
@@ -201,7 +246,11 @@ function BillingPage() {
       return;
     }
 
-    window.location.assign(data.url);
+    const redirected = redirectToExternalUrl(redirectUrl);
+    if (!redirected) {
+      setBusyAction("");
+      setError("Checkout link is invalid. Please try again.");
+    }
   }
 
   async function openManage() {
@@ -224,7 +273,9 @@ function BillingPage() {
       DEFAULT_MANAGE_FUNCTION
     );
 
-    if (manageError || !data?.url) {
+    const redirectUrl = extractRedirectUrl(data);
+
+    if (manageError || !redirectUrl) {
       setBusyAction("");
       const message = await resolveInvokeErrorMessage(
         manageError,
@@ -236,7 +287,11 @@ function BillingPage() {
       return;
     }
 
-    window.location.assign(data.url);
+    const redirected = redirectToExternalUrl(redirectUrl);
+    if (!redirected) {
+      setBusyAction("");
+      setError("Subscription management link is invalid. Please try again.");
+    }
   }
 
   return (
