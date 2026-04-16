@@ -24,6 +24,26 @@ function formatFunctionInvokeError(error, functionName, fallbackMessage) {
   return message || fallbackMessage;
 }
 
+async function resolveInvokeErrorMessage(error, functionName, fallbackMessage, responseData) {
+  if (responseData?.error) {
+    return String(responseData.error);
+  }
+
+  const context = error?.context;
+  if (context) {
+    try {
+      const payload = await context.clone().json();
+      if (payload?.error) {
+        return String(payload.error);
+      }
+    } catch {
+      // Ignore JSON parse issues and fall back to generic formatting.
+    }
+  }
+
+  return formatFunctionInvokeError(error, functionName, fallbackMessage);
+}
+
 function BillingPage() {
   const { authEnabled, user, isPro, planTier, subscriptionStatus, refreshEntitlements } = useAuth();
   const [busyAction, setBusyAction] = useState("");
@@ -48,13 +68,13 @@ function BillingPage() {
 
     if (checkoutError || !data?.url) {
       setBusyAction("");
-      setError(
-        formatFunctionInvokeError(
-          checkoutError,
-          CHECKOUT_FUNCTION,
-          "Unable to start checkout."
-        )
+      const message = await resolveInvokeErrorMessage(
+        checkoutError,
+        CHECKOUT_FUNCTION,
+        "Unable to start checkout.",
+        data
       );
+      setError(message);
       return;
     }
 
@@ -80,13 +100,13 @@ function BillingPage() {
 
     if (manageError || !data?.url) {
       setBusyAction("");
-      setError(
-        formatFunctionInvokeError(
-          manageError,
-          MANAGE_FUNCTION,
-          "Unable to open subscription management."
-        )
+      const message = await resolveInvokeErrorMessage(
+        manageError,
+        MANAGE_FUNCTION,
+        "Unable to open subscription management.",
+        data
       );
+      setError(message);
       return;
     }
 

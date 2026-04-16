@@ -131,10 +131,19 @@ export function AuthProvider({ children }) {
 
   async function signOut() {
     if (!isAuthConfigured || !supabase) {
-      return;
+      return { error: { message: "Supabase auth is not configured." } };
     }
 
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+
+    if (!error) {
+      setUser(null);
+      setEmailConfirmed(false);
+      setPlanTier("free");
+      setSubscriptionStatus("inactive");
+    }
+
+    return { error };
   }
 
   async function resendConfirmationEmail(email) {

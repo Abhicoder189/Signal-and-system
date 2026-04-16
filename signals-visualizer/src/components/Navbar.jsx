@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 const navItems = [
@@ -13,9 +14,19 @@ const navItems = [
 
 function Navbar() {
   const { user, isPro, signOut, authEnabled } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
 
   async function handleSignOut() {
-    await signOut();
+    setSignOutError("");
+    setIsSigningOut(true);
+
+    const { error } = await signOut();
+
+    setIsSigningOut(false);
+    if (error) {
+      setSignOutError(error.message || "Unable to sign out. Please try again.");
+    }
   }
 
   return (
@@ -61,13 +72,19 @@ function Navbar() {
               <NavLink to="/billing" className="navbar-link">
                 Billing
               </NavLink>
-              <button type="button" className="button button-subtle" onClick={handleSignOut}>
-                Sign out
+              <button
+                type="button"
+                className="button button-subtle"
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+              >
+                {isSigningOut ? "Signing out..." : "Sign out"}
               </button>
             </>
           )}
         </div>
       </div>
+      {signOutError && <p className="status-message status-error">{signOutError}</p>}
     </nav>
   );
 }
