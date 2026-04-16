@@ -6,17 +6,50 @@ import RequirePro from "./components/RequirePro";
 import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import LoadingPage from "./pages/LoadingPage";
 
-const Home = lazy(() => import("./pages/Home"));
-const SignalsPage = lazy(() => import("./pages/SignalsPage"));
-const OperationsPage = lazy(() => import("./pages/OperationsPage"));
-const SystemsPage = lazy(() => import("./pages/SystemsPage"));
-const ConvolutionPage = lazy(() => import("./pages/ConvolutionPage"));
-const FourierPage = lazy(() => import("./pages/FourierPage"));
-const LaplacePage = lazy(() => import("./pages/LaplacePage"));
-const AuthPage = lazy(() => import("./pages/AuthPage"));
-const BillingPage = lazy(() => import("./pages/BillingPage"));
-const PricingGatePage = lazy(() => import("./pages/PricingGatePage"));
-const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const CHUNK_RELOAD_KEY = "sv:chunk-reload";
+
+function lazyWithRetry(importer) {
+  return lazy(async () => {
+    const hasRefreshed =
+      typeof window !== "undefined" && sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1";
+
+    try {
+      const module = await importer();
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, "0");
+      }
+      return module;
+    } catch (error) {
+      const message = String(error?.message || "");
+      const isChunkLoadError =
+        message.includes("Failed to fetch dynamically imported module") ||
+        message.includes("Importing a module script failed");
+
+      if (isChunkLoadError && !hasRefreshed && typeof window !== "undefined") {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+        window.location.reload();
+        return new Promise(() => {});
+      }
+
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, "0");
+      }
+      throw error;
+    }
+  });
+}
+
+const Home = lazyWithRetry(() => import("./pages/Home"));
+const SignalsPage = lazyWithRetry(() => import("./pages/SignalsPage"));
+const OperationsPage = lazyWithRetry(() => import("./pages/OperationsPage"));
+const SystemsPage = lazyWithRetry(() => import("./pages/SystemsPage"));
+const ConvolutionPage = lazyWithRetry(() => import("./pages/ConvolutionPage"));
+const FourierPage = lazyWithRetry(() => import("./pages/FourierPage"));
+const LaplacePage = lazyWithRetry(() => import("./pages/LaplacePage"));
+const AuthPage = lazyWithRetry(() => import("./pages/AuthPage"));
+const BillingPage = lazyWithRetry(() => import("./pages/BillingPage"));
+const PricingGatePage = lazyWithRetry(() => import("./pages/PricingGatePage"));
+const NotFoundPage = lazyWithRetry(() => import("./pages/NotFoundPage"));
 
 function withSuspense(element) {
   return <Suspense fallback={<LoadingPage />}>{element}</Suspense>;
