@@ -143,6 +143,15 @@ async function directInvoke(functionName) {
 
 function formatFunctionInvokeError(error, functionName, fallbackMessage) {
   const message = String(error?.message || "");
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("no api key found in request")) {
+    return `Supabase function \"${functionName}\" is missing project API key context. In Supabase Function secrets, set SUPABASE_SERVICE_ROLE_KEY to your real service role key and redeploy the function.`;
+  }
+
+  if (normalized.includes("invalid placeholder value for env variable")) {
+    return `Supabase function \"${functionName}\" is using placeholder secret values. Replace placeholder secrets (for example SUPABASE_SERVICE_ROLE_KEY) with real values and redeploy.`;
+  }
 
   if (message.includes("Failed to send a request to the Edge Function")) {
     return `Unable to reach Supabase function \"${functionName}\". Deploy the function and verify VITE_SUPABASE_URL is correct.`;
