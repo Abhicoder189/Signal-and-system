@@ -22,20 +22,39 @@ function isHttpUrl(value) {
   }
 }
 
+function isPublicCallbackUrl(value) {
+  if (!isHttpUrl(value)) {
+    return false;
+  }
+
+  try {
+    const url = new URL(value);
+    const host = String(url.hostname || "").toLowerCase();
+
+    if (!host) return false;
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return false;
+    if (host.endsWith(".local")) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function resolveCallbackUrl(req) {
   const configuredRedirect = getEnv("RAZORPAY_SUCCESS_REDIRECT", "");
-  if (isHttpUrl(configuredRedirect)) {
+  if (isPublicCallbackUrl(configuredRedirect)) {
     return configuredRedirect;
   }
 
   const appBaseUrl = getEnv("APP_BASE_URL", "");
-  if (isHttpUrl(appBaseUrl)) {
+  if (isPublicCallbackUrl(appBaseUrl)) {
     const base = appBaseUrl.replace(/\/$/, "");
     return `${base}/billing`;
   }
 
   const originHeader = req.headers.get("origin") || "";
-  if (isHttpUrl(originHeader)) {
+  if (isPublicCallbackUrl(originHeader)) {
     const base = originHeader.replace(/\/$/, "");
     return `${base}/billing`;
   }

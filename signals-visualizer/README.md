@@ -205,6 +205,7 @@ Important:
 
 - Include `notes.user_id` in checkout payloads (already implemented in function) so webhook can map payments to users.
 - Keep JWT verification disabled only for the webhook function.
+- Razorpay callback URLs must be publicly reachable. `localhost`, `127.0.0.1`, and `.local` hosts are rejected and can cause `{"error":"requested path is invalid"}`.
 
 ## Project Structure
 
