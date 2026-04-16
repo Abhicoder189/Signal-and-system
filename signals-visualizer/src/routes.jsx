@@ -5,35 +5,24 @@ import RequireAuth from "./components/RequireAuth";
 import RequirePro from "./components/RequirePro";
 import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import LoadingPage from "./pages/LoadingPage";
-
-const CHUNK_RELOAD_KEY = "sv:chunk-reload";
+import {
+  clearChunkRecoveryFlag,
+  isChunkLoadError,
+  maybeRecoverFromChunkError
+} from "./utils/chunkRecovery";
 
 function lazyWithRetry(importer) {
   return lazy(async () => {
-    const hasRefreshed =
-      typeof window !== "undefined" && sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1";
-
     try {
       const module = await importer();
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem(CHUNK_RELOAD_KEY, "0");
-      }
+      clearChunkRecoveryFlag();
       return module;
     } catch (error) {
-      const message = String(error?.message || "");
-      const isChunkLoadError =
-        message.includes("Failed to fetch dynamically imported module") ||
-        message.includes("Importing a module script failed");
-
-      if (isChunkLoadError && !hasRefreshed && typeof window !== "undefined") {
-        sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
-        window.location.reload();
+      if (isChunkLoadError(error) && maybeRecoverFromChunkError()) {
         return new Promise(() => {});
       }
 
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem(CHUNK_RELOAD_KEY, "0");
-      }
+      clearChunkRecoveryFlag();
       throw error;
     }
   });
